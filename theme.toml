@@ -1,0 +1,12 @@
+name = "Hugo Link Preview Shortcode"
+license = "MIT"
+licenselink = "https://github.com/glyzinie/hugo-shortcode-blogcard/blob/main/LICENSE"
+description = "A customizable Hugo shortcode for dynamically generating rich link previews with titles, descriptions, and optimized favicons, enhancing visual appeal and user engagement on your site."
+homepage = "https://github.com/glyzinie/hugo-shortcode-blogcard"
+tags = []
+features = []
+min_version = '0.123.0'
+
+[author]
+name = "Wis"
+homepage = "https://glyzinie.net"
