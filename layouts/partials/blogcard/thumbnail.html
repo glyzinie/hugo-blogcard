@@ -1,0 +1,40 @@
+{{- $thumbnail := "" -}}
+{{- $quality := .quality -}}
+{{- range slice (dict "remote" .image) (dict "local" .fallback) -}}
+  {{- $resource := false -}}
+  {{- with .remote -}}
+    {{- $imageURL := . -}}
+    {{- with try (resources.GetRemote .) -}}
+      {{- with .Err -}}
+        {{- warnf "blogcard: could not retrieve image %s: %s" $imageURL . -}}
+      {{- else with .Value -}}
+        {{- $resource = . -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- with .local -}}
+    {{- with try (resources.Get .) -}}
+      {{- with .Err -}}
+        {{- warnf "blogcard: could not load fallback image: %s" . -}}
+      {{- else with .Value -}}
+        {{- $resource = . -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- with $resource -}}
+    {{- /* SVG and other non-raster resources do not support Fit. */ -}}
+    {{- if in (slice "jpeg" "png" "gif" "webp" "tiff" "bmp") .MediaType.SubType -}}
+      {{- with try (.Fit (printf "200x200 q%d webp" $quality)) -}}
+        {{- with .Err -}}
+          {{- warnf "blogcard: could not process thumbnail: %s" . -}}
+        {{- else with .Value -}}
+          {{- $thumbnail = .RelPermalink -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if $thumbnail -}}
+    {{- break -}}
+  {{- end -}}
+{{- end -}}
+{{- return $thumbnail -}}

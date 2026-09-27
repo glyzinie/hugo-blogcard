@@ -1,0 +1,10 @@
+{{- /* Read quoted or unquoted attributes; decode HTML entities exactly once. */ -}}
+{{- $attributes := dict -}}
+{{- range findRESubmatch `(?s)\s+([A-Za-z_:][A-Za-z0-9_:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+))` . -}}
+  {{- $name := lower (index . 1) -}}
+  {{- if not (isset $attributes $name) -}}
+    {{- $value := or (index . 2) (index . 3) (index . 4) -}}
+    {{- $attributes = merge $attributes (dict $name (htmlUnescape $value)) -}}
+  {{- end -}}
+{{- end -}}
+{{- return $attributes -}}

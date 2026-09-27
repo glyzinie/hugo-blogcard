@@ -1,0 +1,108 @@
+{{- $url := . -}}
+{{- $title := $url.Host -}}
+{{- $description := "" -}}
+{{- $image := "" -}}
+{{- $favicon := "" -}}
+{{- $unavailable := true -}}
+
+{{- with try (resources.GetRemote $url.String) -}}
+  {{- with .Err -}}
+    {{- warnf "blogcard: could not retrieve %s: %s" $url.String . -}}
+  {{- else with .Value -}}
+    {{- $unavailable = false -}}
+    {{- $head := "" -}}
+    {{- with findRESubmatch `(?is)<head\b[^>]*>(.*?)</head\s*>` .Content 1 -}}
+      {{- $head = index (index . 0) 1 -}}
+    {{- end -}}
+    {{- /* Ignore metadata-like text in comments, scripts, and styles. */ -}}
+    {{- $head = replaceRE `(?is)<!--.*?-->|<script\b[^>]*>.*?</script\s*>|<style\b[^>]*>.*?</style\s*>` "" $head -}}
+    {{- $meta := dict -}}
+    {{- $baseRef := "" -}}
+    {{- $icons := slice -}}
+    {{- $manifestRef := "" -}}
+    {{- range findRE `(?is)<(?:meta|link|base)\b(?:[^"'<>]|"[^"]*"|'[^']*')*>` $head -}}
+      {{- $attributes := partial "blogcard/attributes.html" . -}}
+      {{- if findRE `(?i)^<meta\b` . -}}
+        {{- $name := lower (or $attributes.property $attributes.name "") -}}
+        {{- if and $name $attributes.content (not (isset $meta $name)) -}}
+          {{- $meta = merge $meta (dict $name (strings.TrimSpace $attributes.content)) -}}
+        {{- end -}}
+      {{- else if findRE `(?i)^<base\b` . -}}
+        {{- if and (not $baseRef) $attributes.href -}}
+          {{- $baseRef = $attributes.href -}}
+        {{- end -}}
+      {{- else -}}
+        {{- $rel := $attributes.rel | default "" -}}
+        {{- if and $attributes.href (findRE `(?i)(^|\s)icon(\s|$)` $rel) -}}
+          {{- $icons = $icons | append $attributes.href -}}
+        {{- else if and (not $manifestRef) $attributes.href (findRE `(?i)(^|\s)manifest(\s|$)` $rel) -}}
+          {{- $manifestRef = $attributes.href -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+
+    {{- $base := $url -}}
+    {{- with partial "blogcard/resolve-url.html" (dict "base" $url "ref" $baseRef) -}}
+      {{- $base = urls.Parse . -}}
+    {{- end -}}
+    {{- $documentTitle := "" -}}
+    {{- with findRESubmatch `(?is)<title\b[^>]*>(.*?)</title\s*>` $head 1 -}}
+      {{- $documentTitle = index (index . 0) 1 | htmlUnescape | plainify | strings.TrimSpace -}}
+    {{- end -}}
+    {{- $title = or (index $meta "og:title") (index $meta "twitter:title") (index $meta "title") $documentTitle $title -}}
+    {{- $description = or (index $meta "zenn:description") (index $meta "og:description") (index $meta "twitter:description") (index $meta "description") "" | plainify -}}
+    {{- range slice "zenn:image" "og:image" "twitter:image" "twitter:image:src" "image" -}}
+      {{- with partial "blogcard/resolve-url.html" (dict "base" $base "ref" (index $meta .)) -}}
+        {{- $image = . -}}
+        {{- break -}}
+      {{- end -}}
+    {{- end -}}
+    {{- range $icons -}}
+      {{- with partial "blogcard/resolve-url.html" (dict "base" $base "ref" .) -}}
+        {{- $favicon = . -}}
+        {{- break -}}
+      {{- end -}}
+    {{- end -}}
+
+    {{- /* A manifest is only needed when the page has no usable icon link. */ -}}
+    {{- if not $favicon -}}
+      {{- with partial "blogcard/resolve-url.html" (dict "base" $base "ref" $manifestRef) -}}
+        {{- $manifestURL := urls.Parse . -}}
+        {{- with try (resources.GetRemote .) -}}
+          {{- with .Err -}}
+            {{- warnf "blogcard: could not retrieve manifest %s: %s" $manifestURL.String . -}}
+          {{- else with .Value -}}
+            {{- with try (transform.Unmarshal (dict "format" "json") .Content) -}}
+              {{- with .Err -}}
+                {{- warnf "blogcard: could not parse manifest %s: %s" $manifestURL.String . -}}
+              {{- else -}}
+                {{- if reflect.IsMap .Value -}}
+                  {{- with .Value.icons -}}
+                    {{- if reflect.IsSlice . -}}
+                      {{- range . -}}
+                        {{- if reflect.IsMap . -}}
+                          {{- with partial "blogcard/resolve-url.html" (dict "base" $manifestURL "ref" .src) -}}
+                            {{- /* Icon order is the fallback preference; sizes may be optional or "any". */ -}}
+                            {{- $favicon = . -}}
+                            {{- break -}}
+                          {{- end -}}
+                        {{- end -}}
+                      {{- end -}}
+                    {{- end -}}
+                  {{- end -}}
+                {{- end -}}
+              {{- end -}}
+            {{- end -}}
+          {{- end -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if not $favicon -}}
+      {{- $favicon = partial "blogcard/resolve-url.html" (dict "base" $url "ref" "/favicon.ico") -}}
+    {{- end -}}
+  {{- else -}}
+    {{- warnf "blogcard: page not found: %s" $url.String -}}
+  {{- end -}}
+{{- end -}}
+
+{{- return (dict "title" $title "description" $description "image" $image "favicon" $favicon "unavailable" $unavailable) -}}

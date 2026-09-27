@@ -1,0 +1,14 @@
+{{- $resolved := "" -}}
+{{- if eq (printf "%T" .ref) "string" -}}
+  {{- with strings.TrimSpace .ref -}}
+    {{- with try (urls.Parse .) -}}
+      {{- if not .Err -}}
+        {{- $candidate := $.base.ResolveReference .Value -}}
+        {{- if and (in (slice "http" "https") (lower $candidate.Scheme)) $candidate.Host -}}
+          {{- $resolved = $candidate.String -}}
+        {{- end -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $resolved -}}

@@ -1,0 +1,4 @@
+{{- /* Emit the shared stylesheet for each card: Store flags survive server rebuilds. */ -}}
+{{- with resources.Get "blogcard/blogcard.css" | resources.Minify | resources.Fingerprint "sha256" -}}
+<link rel="stylesheet" href="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous">
+{{- end -}}
